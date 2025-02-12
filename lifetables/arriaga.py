@@ -1,7 +1,9 @@
 from typing import Iterable
 
 import polars as pl
+from polars import selectors as cs
 
+from lifetables.helpers import aggregate_cod
 from lifetables.life_table import create_life_table
 
 
@@ -47,4 +49,47 @@ def arriaga_decomposition_by_age(
             years.over(by),
             proportion.over(by),
         )
+    )
+
+
+def arriaga_decomposition_by_age_and_cause(
+    initial_mortality_rates: pl.LazyFrame,
+    new_mortality_rates: pl.LazyFrame,
+    *,
+    by: Iterable[str],
+    cause_column="cause_of_death",
+):
+
+    q = pl.col("mortality")
+    q_new = pl.col("mortality_new")
+    cause_share = ((q_new - q) / (q_new - q).sum()).alias("share_within_age")
+
+    cause_shares = (
+        #  create joint life table
+        initial_mortality_rates.join(
+            new_mortality_rates,
+            on=list(by) + ["age", cause_column],
+            how="inner",
+            validate="1:1",
+            suffix="_new",
+        ).select(*by, "age", cause_column, cause_share.over(*by, "age"))
+    )
+
+    # get total contribution of each age
+    total_contributions = arriaga_decomposition_by_age(
+        initial_mortality_rates.pipe(aggregate_cod, by=by),
+        new_mortality_rates.pipe(aggregate_cod, by=by),
+        by=by,
+    ).select(*by, "age", cs.starts_with("contribution_"))
+
+    return (
+        cause_shares.join(
+            total_contributions,
+            on=list(by) + ["age"],
+            how="inner",
+            validate="m:1",
+        )
+        # mult. age contribution by within-age cause contribution
+        # to get total contribution by cause x age
+        .with_columns(cs.starts_with("contribution_") * pl.col("share_within_age"))
     )
