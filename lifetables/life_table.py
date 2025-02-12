@@ -30,11 +30,11 @@ import polars as pl
 
 
 def create_life_table(
-    df: pl.LazyFrame,
+    df: pl.LazyFrame,  # *by, age, raw_mortality_rate
     *,
     by: Iterable[str] = [],
-    raw_mortality_rate=pl.col("mortality"),
     age=pl.col("age"),
+    raw_mortality_rate=pl.col("mortality"),
     l_0=1,
 ) -> pl.LazyFrame:
 
@@ -66,8 +66,9 @@ def create_life_table(
 
     le = e + pl.col("age")
 
-    life_table_columns = [q, l, d, L, T, e]
+    life_table_columns = dict(q=q, p=p, l=l, d=d, s=s, L=L, T=T, e=e)
 
-    return df.sort(*by, "age").with_columns(
-        col.over(by) if by else col for col in life_table_columns
+    return df.sort(*by, "age").select(
+        expr.over(by).alias(name) if by else expr.alias(name)
+        for name, expr in life_table_columns.items()
     )
