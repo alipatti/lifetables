@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling", "uv", "polars", "joblib", "rich"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lifetables"
+version = "0.0.1"
+authors = [
+  { name="Alistair Pattison", email="alistairpattison@gmail.com" },
+]
+description = "Life tables in Python"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/alipatti/lifetables"
+
