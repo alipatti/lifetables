@@ -30,13 +30,13 @@ import polars as pl
 
 
 def create_life_table(
-    df: pl.DataFrame,
+    df: pl.LazyFrame,
     *,
     by: Iterable[str] = [],
     raw_mortality_rate=pl.col("mortality"),
     age=pl.col("age"),
     l_0=1,
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
 
     # TODO: account for variable-width bins?
     # width of age bin (next age - current age)
