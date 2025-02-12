@@ -20,13 +20,8 @@ def arriaga_decomposition_by_age(
     e_new = pl.col("e_new")
     T_new = pl.col("T_new")
 
-    # old, more complicated method
     direct_effect = (l * (L_new / l_new - L / l)).alias("direct_effect")
     indirect_effect = (T_new.shift(-1) * (l / l_new).diff(-1)).alias("indirect_effect")
-
-    # simplified form derived by Hannes Schwandt (and verified by Alistair)
-    # direct_effect = (l * (q - q_new) * pl.col("s_new")).alias("direct_effect")
-    # indirect_effect = (l * (q - q_new) * e_new.shift(-1)).alias("indirect_effect")
 
     # gap contributions
     years = (direct_effect + indirect_effect).alias("contribution_years")
