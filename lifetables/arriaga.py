@@ -1,3 +1,8 @@
+"""
+original paper: https://doi.org/10.2307/2061029
+more concrete implementation: https://doi.org/10.1016/j.annepidem.2014.05.006
+"""
+
 from typing import Iterable, Literal, Optional
 
 import polars as pl
@@ -144,7 +149,7 @@ def arriaga_decomposition(
             initial_mortality,
             by=by,
             within_age=within_age,
-        )
+        ).with_columns(cs.starts_with("contribution_").mul(-1))
 
     # now direction == "average":
 
@@ -162,4 +167,6 @@ def arriaga_decomposition(
     )
 
     group = [*by, "age", within_age] if within_age else [*by, "age"]
-    return both_directions.group_by(group).agg(cs.exclude("direction").mean())
+    return both_directions.group_by(group, maintain_order=True).agg(
+        cs.exclude("direction").mean()
+    )
