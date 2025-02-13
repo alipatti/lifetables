@@ -1,6 +1,8 @@
 """
-Life table functions as defined at 
-https://www.ssa.gov/oact/HistEst/PerLifeTables/LifeTableDefinitions.pdf.
+See e.g. 
+- https://www.ssa.gov/oact/HistEst/PerLifeTables/LifeTableDefinitions.pdf
+- https://www.aitrs.org/sites/default/files/Life%20Tables.pdf
+- https://mortality.org/File/GetDocument/Public/Docs/MethodsProtocolV6.pdf (p. 36)
 
 Expects columns "mortality" and "age", with the data frame sorted (increasing)
 by age, for example
@@ -27,36 +29,51 @@ by age, for example
 
 from typing import Iterable
 import polars as pl
+from polars._typing import IntoExpr
 
 
 def create_life_table(
-    df: pl.LazyFrame,  # *by, age, raw_mortality_rate
+    raw_mortality_rates: pl.LazyFrame,  # *by, age, raw_mortality_rate
     *,
     by: Iterable[str] = [],
-    age=pl.col("age"),
-    raw_mortality_rate=pl.col("mortality"),
-    l_0=1,
+    m: pl.Expr = pl.col("mortality"),
+    age: pl.Expr = pl.col("age"),
+    initial_cohort_size: IntoExpr = 1,
+    separation_factor: IntoExpr = 0.5,
+    infant_separation_factor: IntoExpr = 0.14,
+    final_separation_factor: IntoExpr = 0.5,  # 1 / pl.col("mortality"),
 ) -> pl.LazyFrame:
 
-    # TODO: account for variable-width bins?
+    # TODO: handle age bins of width other than 1
     # width of age bin (next age - current age)
-    # n = age.shift(-1) - age
+    # width = age.shift(-1) - age
+
+    is_final_age = age == age.max()
+
+    # mean number of years lived for those within bin (separation factor)
+    s = (
+        # infants
+        pl.when(age=0)
+        .then(infant_separation_factor)
+        # TODO: handle final age bin
+        .when(is_final_age)
+        .then(final_separation_factor)
+        # otherwise 1/2
+        .otherwise(separation_factor)
+    )
 
     # probability of dying at age x, conditional on having lived until age x
-    q = pl.when(age == age.max()).then(1.0).otherwise(raw_mortality_rate)
-    p = 1 - q
+    # top age bin gets set to 1
+    q = pl.when(is_final_age).then(1.0).otherwise(m / (1 + (1 - s) * m))
 
     # probability of living to age x
-    l = p.shift(1, fill_value=l_0).cum_prod()
+    l = (1 - q).shift(1, fill_value=initial_cohort_size).cum_prod()
 
     # probability of dying at age x
     d = l * q
 
-    # mean number of years lived for those within bin
-    s = pl.when(age == 0).then(0.14).otherwise(0.5)
-
     # person years lived at exact age
-    L = l - s * d
+    L = l - (1 - s) * d
 
     # person years remaining
     T = L.cum_sum(reverse=True)
@@ -64,11 +81,22 @@ def create_life_table(
     # life expectancy remaining
     e = T / l
 
-    le = e + pl.col("age")
+    life_table_columns = dict(q=q, l=l, d=d, s=s, L=L, T=T, e=e)
 
-    life_table_columns = dict(q=q, p=p, l=l, d=d, s=s, L=L, T=T, e=e)
-
-    return df.sort(*by, "age").select(
+    return raw_mortality_rates.sort(*by, "age").with_columns(
         expr.over(by).alias(name) if by else expr.alias(name)
         for name, expr in life_table_columns.items()
+    )
+
+
+def compute_le(
+    mortality_rates: pl.LazyFrame,
+    *,
+    by: Iterable[str] = [],
+    m: pl.Expr = pl.col("mortality"),
+    age: pl.Expr = pl.col("age"),
+    **kwargs,
+) -> pl.LazyFrame:
+    return create_life_table(mortality_rates, **kwargs).select(
+        *by, m, age, le=pl.col("e") + age
     )
