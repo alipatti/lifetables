@@ -20,7 +20,7 @@ def test_life_table() -> None:
         .pipe(
             create_life_table,
             by=["year", "sex"],
-            raw_mortality_rate=pl.col("m"),
+            m=pl.col("m"),
             final_separation_factor=1 / pl.col("m"),
             infant_separation_factor=pl.col("a"),
             initial_cohort_size=100_000,
