@@ -97,6 +97,6 @@ def compute_le(
     age: pl.Expr = pl.col("age"),
     **kwargs,
 ) -> pl.LazyFrame:
-    return create_life_table(mortality_rates, **kwargs).select(
-        *by, m, age, le=pl.col("e") + age
+    return create_life_table(mortality_rates, by=by, age=age, m=m, **kwargs).select(
+        *by, age, le=pl.col("e") + age
     )
