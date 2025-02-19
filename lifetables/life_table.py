@@ -41,7 +41,8 @@ def create_life_table(
     initial_cohort_size: IntoExpr = 1,
     separation_factor: IntoExpr = 0.5,
     infant_separation_factor: IntoExpr = 0.14,
-    final_separation_factor: IntoExpr = 0.5,  # 1 / pl.col("mortality"),
+    final_separation_factor: IntoExpr = 1 / pl.col("mortality"),
+    q_equals_m=False,
 ) -> pl.LazyFrame:
 
     # TODO: handle age bins of width other than 1
@@ -62,9 +63,12 @@ def create_life_table(
         .otherwise(separation_factor)
     )
 
+    # use q != m if populations are measured mid-year (after some number of people have died)
+    q_inner = m if q_equals_m else m / (1 + (1 - s) * m)
+
     # probability of dying at age x, conditional on having lived until age x
     # top age bin gets set to 1
-    q = pl.when(is_final_age).then(1.0).otherwise(m / (1 + (1 - s) * m))
+    q = pl.when(is_final_age).then(1.0).otherwise(q_inner)
 
     # probability of living to age x
     l = (1 - q).shift(1, fill_value=initial_cohort_size).cum_prod()
