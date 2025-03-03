@@ -1,11 +1,40 @@
-from typing import Iterable
+from typing import Iterable, Optional, Sequence
 
 import polars as pl
 from polars import selectors as cs
 
+from lifetables.populations import get_standard_pops
+
 
 def smooth_mortality_rates():
     raise NotImplementedError
+
+
+def align_mortality_rates(
+    reference_rates: pl.LazyFrame,
+    rates_to_align: pl.LazyFrame,
+    *,
+    by: Iterable[str],
+    age_to_align: pl.Expr = pl.col("age").max(),  # executed on reference_rates
+    column_to_align="mortality",
+):
+    # *by, shift
+    shifts = rates_to_align.join(
+        reference_rates.filter(pl.col("age").eq(age_to_align).over(by)),
+        how="inner",
+        validate="1:m",
+        on=[*by, "age"],
+    ).select(
+        *by,
+        shift=pl.col(column_to_align + "_right") / pl.col(column_to_align),
+    )
+
+    return rates_to_align.join(
+        shifts,
+        on=[*by],
+        how="inner",
+        validate="m:1",
+    ).select(*by, "age", pl.col(column_to_align) * pl.col("shift"))
 
 
 def fill_mortality_rates(
@@ -53,4 +82,27 @@ def fill_mortality_rates(
         )
         # drop the fill rates
         .drop(cs.ends_with("_fill")).sort(*by, "age")
+    )
+
+
+def age_standardized_mortality(
+    mortality_rates: pl.LazyFrame,
+    *,
+    by: Iterable[str],
+    standard_populations: Optional[pl.LazyFrame],
+    join_by: Sequence[str] = ["age"],
+    mortatliy_col=pl.col("mortality"),
+) -> pl.LazyFrame:
+
+    standard_populations = standard_populations or get_standard_pops().lazy()
+
+    return (
+        mortality_rates.join(
+            standard_populations,
+            how="left",
+            validate="m:1",
+            on=join_by,
+        )
+        .group_by(*by)
+        .agg(mortatliy_col.dot("population") / pl.col("population").sum())
     )
