@@ -89,7 +89,7 @@ def age_standardized_mortality(
     mortality_rates: pl.LazyFrame,
     *,
     by: Iterable[str],
-    standard_populations: Optional[pl.LazyFrame],
+    standard_populations: Optional[pl.LazyFrame] = None,
     join_by: Sequence[str] = ["age"],
     mortatliy_col=pl.col("mortality"),
 ) -> pl.LazyFrame:
