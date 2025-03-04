@@ -50,7 +50,6 @@ def fill_mortality_rates(
     post_switch_fill_value=float("nan"),
     column_to_fill="mortality",
 ) -> pl.LazyFrame:
-
     # construct spine containing the full age range of interest
     ages = pl.int_range(min_age, max_age + 1, step=1, eager=True).to_frame("age").lazy()
     spine = original_rates.select(*by).unique().sort(pl.all()).join(ages, how="cross")
@@ -72,16 +71,16 @@ def fill_mortality_rates(
     return (
         both_rates.with_columns(
             # before swich_age, use original rates
-            pl.when(pl.col("age").lt(switch_age)).then(
-                pl.col(column_to_fill).fill_null(value=pre_switch_fill_value)
-            )
+            pl.when(pl.col("age").lt(switch_age))
+            .then(pl.col(column_to_fill).fill_null(value=pre_switch_fill_value))
             # on and after swich_age, use new rates
             .otherwise(
                 pl.col(column_to_fill + "_fill").fill_null(value=post_switch_fill_value)
             )
         )
         # drop the fill rates
-        .drop(cs.ends_with("_fill")).sort(*by, "age")
+        .drop(cs.ends_with("_fill"))
+        .sort(*by, "age")
     )
 
 
@@ -89,20 +88,22 @@ def age_standardized_mortality(
     mortality_rates: pl.LazyFrame,
     *,
     by: Iterable[str],
-    standard_populations: Optional[pl.LazyFrame] = None,
-    join_by: Sequence[str] = ["age"],
+    standard_populations: Optional[pl.LazyFrame] = None, # age, population
     mortatliy_col=pl.col("mortality"),
+    other_exprs: Iterable[pl.Expr],
 ) -> pl.LazyFrame:
-
     standard_populations = standard_populations or get_standard_pops().lazy()
 
     return (
         mortality_rates.join(
-            standard_populations,
+            standard_populations.select(
+                "age",
+                w=pl.col("population") / pl.col("population").sum(),
+            ),
             how="left",
             validate="m:1",
-            on=join_by,
+            on=["age"],
         )
         .group_by(*by)
-        .agg(mortatliy_col.dot("population") / pl.col("population").sum())
+        .agg(mortatliy_col.dot("w"), *other_exprs)
     )
