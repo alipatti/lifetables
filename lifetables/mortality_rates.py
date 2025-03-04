@@ -90,7 +90,7 @@ def age_standardized_mortality(
     by: Iterable[str],
     standard_populations: Optional[pl.LazyFrame] = None, # age, population
     mortatliy_col=pl.col("mortality"),
-    other_exprs: Iterable[pl.Expr],
+    other_exprs: Iterable[pl.Expr] = [],
 ) -> pl.LazyFrame:
     standard_populations = standard_populations or get_standard_pops().lazy()
 
