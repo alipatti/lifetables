@@ -89,7 +89,7 @@ def age_standardized_mortality(
     *,
     by: Iterable[str],
     standard_populations: Optional[pl.LazyFrame] = None, # age, population
-    mortaltiy_col=pl.col("mortality"),
+    mortality_col=pl.col("mortality"),
     other_exprs: Iterable[pl.Expr] = [],
 ) -> pl.LazyFrame:
     standard_populations = standard_populations or get_standard_pops().lazy()
@@ -105,5 +105,5 @@ def age_standardized_mortality(
             on=["age"],
         )
         .group_by(*by)
-        .agg(mortaltiy_col.dot("w"), *other_exprs)
+        .agg(mortality_col.dot("w"), *other_exprs)
     )
