@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lifetables"
-version = "0.0.8"
+version = "0.0.9"
 authors = [
   { name="Alistair Pattison", email="alistairpattison@gmail.com" },
 ]
@@ -22,6 +22,7 @@ dependencies = [
     "lxml>=5.3.1",
     "pandas>=2.0.3",
     "polars>=1.8.2",
+    "polars-utils>=0.1.6",
     "rich>=13.9.4",
 ]
 

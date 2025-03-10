@@ -170,6 +170,7 @@ dependencies = [
     { name = "lxml" },
     { name = "pandas" },
     { name = "polars" },
+    { name = "polars-utils" },
     { name = "rich" },
 ]
 
@@ -186,6 +187,7 @@ requires-dist = [
     { name = "lxml", specifier = ">=5.3.1" },
     { name = "pandas", specifier = ">=2.0.3" },
     { name = "polars", specifier = ">=1.8.2" },
+    { name = "polars-utils", specifier = ">=0.1.6" },
     { name = "rich", specifier = ">=13.9.4" },
 ]
 
@@ -541,6 +543,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/12/16/f95207616b2e802c381459cf01f0d233daa98bdc4e394ec88044af9e927f/polars-1.24.0-cp39-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:3c6c774aebdd5cd601839594986648789352f72b8893f4b7e34224e75b060c8d", size = 31490266 },
     { url = "https://files.pythonhosted.org/packages/8b/82/cb0512747ec5508a4f840a521feb27f28a81eac1aef6c92fc25643073579/polars-1.24.0-cp39-abi3-win_amd64.whl", hash = "sha256:a5a473ff44fe1b9e3e7a9013a9321efe841d858e89cf33d424e6f3fef3ea4d5e", size = 34678593 },
     { url = "https://files.pythonhosted.org/packages/67/00/db3810803938467a215c1f161ff21ad6fef581d5ac1381ee2990d0180c19/polars-1.24.0-cp39-abi3-win_arm64.whl", hash = "sha256:5ea781ca8e0a39c3b677171dbd852e5fa2d5c53417b5fbd69d711b6044a49eaa", size = 30892251 },
+]
+
+[[package]]
+name = "polars-utils"
+version = "0.1.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "polars" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b4/e0/a2e995bdd97ad10ef7835d85925ec5d30329f2c5bba4da855bf48330bcd5/polars_utils-0.1.6.tar.gz", hash = "sha256:95be5664b12a4fd2f962a0d35a3402bd2121bbbe8d01e85a55f3fcb54f743787", size = 22894 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ac/de/b426c2fea7bff0df40d7377bb6fc1205c2d8f08ba671ff2ca6277c5e7e9e/polars_utils-0.1.6-py3-none-any.whl", hash = "sha256:84e50ece3f74e8cdc8cef28fdca2af3da96941705985831e3ec1ab3011981c62", size = 4755 },
 ]
 
 [[package]]
