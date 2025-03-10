@@ -1,7 +1,8 @@
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional
 
 import polars as pl
 from polars import selectors as cs
+from polars_utils.stats import mean
 
 from lifetables.populations import get_standard_pops
 
@@ -88,7 +89,7 @@ def age_standardized_mortality(
     mortality_rates: pl.LazyFrame,
     *,
     by: Iterable[str],
-    standard_populations: Optional[pl.LazyFrame] = None, # age, population
+    standard_populations: Optional[pl.LazyFrame] = None,  # age, population
     mortality_col=pl.col("mortality"),
     other_exprs: Iterable[pl.Expr] = [],
 ) -> pl.LazyFrame:
@@ -96,14 +97,11 @@ def age_standardized_mortality(
 
     return (
         mortality_rates.join(
-            standard_populations.select(
-                "age",
-                w=pl.col("population") / pl.col("population").sum(),
-            ),
+            standard_populations.rename({"population": "w"}),
             how="left",
             validate="m:1",
             on=["age"],
         )
         .group_by(*by)
-        .agg(mortality_col.dot("w"), *other_exprs)
+        .agg(mortality_col.pipe(mean, w="w"), *other_exprs)
     )
