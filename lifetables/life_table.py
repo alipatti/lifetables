@@ -41,7 +41,7 @@ def create_life_table(
     initial_cohort_size: IntoExpr = 1,
     separation_factor: IntoExpr = 0.5,
     infant_separation_factor: IntoExpr = 0.14,
-    final_separation_factor: IntoExpr = 1 / pl.col("mortality"),
+    final_separation_factor: IntoExpr = 0.5,
     q_equals_m=False,
 ) -> pl.LazyFrame:
 

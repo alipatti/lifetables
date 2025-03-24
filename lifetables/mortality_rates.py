@@ -16,6 +16,7 @@ def align_mortality_rates(
     rates_to_align: pl.LazyFrame,
     *,
     by: Iterable[str],
+    life_tables_by=["year", "sex"],
     age_to_align: pl.Expr = pl.col("age").max(),  # executed on reference_rates
     column_to_align="mortality",
 ):
@@ -32,7 +33,7 @@ def align_mortality_rates(
 
     return rates_to_align.join(
         shifts,
-        on=[*by],
+        on=[*life_tables_by],
         how="inner",
         validate="m:1",
     ).select(*by, "age", pl.col(column_to_align) * pl.col("shift"))
