@@ -5,16 +5,22 @@ from collections.abc import Generator
 
 from hishel.httpx import SyncCacheClient
 import polars as pl
+from polars import selectors as cs
 import fastexcel
 
 LIFE_TABLE_TITLE_PATTERN = (
-    r"^Table (?P<table_number>\d+)\.? "
-    + r"Life table for (?P<race>.*?)(?P<sex>males|females|): "
+    r"^Table (\d+)\.? "
+    + r"Life table for (?P<race>.*?)(?P<sex>male|female|)(s| population|)?: "
     + r"United States, (?P<year>\d{4})$"
 )
 
 # see https://www.cdc.gov/nchs/products/life_tables.htm
 VOLUMES = {
+    2001: "52_14",
+    2002: "53_06",
+    2003: "54_14",
+    2004: "56_09",
+    2005: "58_10",
     2006: "58_21",
     2007: "59_09",
     2008: "61_03",
@@ -36,6 +42,9 @@ VOLUMES = {
 }
 
 
+# years 2001-2005 only published 9 tables; 2018 published 12
+TABLE_COUNTS = {year: 9 for year in range(2001, 2006)} | {2018: 12}
+
 BASE_URL = "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/NVSR"
 CLIENT = SyncCacheClient(base_url=BASE_URL)
 
@@ -43,8 +52,8 @@ LIFE_TABLE_COLS = ["q", "L", "e", "l", "d", "T"]
 
 RACE_MAPPING = {
     # total
-    "": "Total",
-    "total": "Total",
+    "": "Pooled",
+    "total": "Pooled",
     # hispanic
     "hispanic": "Hispanic",
     # white
@@ -69,15 +78,12 @@ def get_all_life_tables() -> pl.DataFrame:
     dfs = (
         get_life_table(year, table)
         for year in VOLUMES.keys()
-        for table in (range(1, 19) if year != 2018 else range(1, 13))
+        for table in range(1, TABLE_COUNTS.get(year, 18) + 1)
     )
 
     df = pl.concat(dfs, how="diagonal_relaxed").with_columns(
         pl.col("year").str.to_integer(),
-        pl.col("sex").replace_strict(
-            {"females": "Female", "males": "Male", "": "Pooled"},
-            return_dtype=pl.Categorical,
-        ),
+        pl.col("sex").str.to_titlecase().replace({"": "Pooled"}).cast(pl.Categorical),
         pl.col("race")
         .str.to_lowercase()
         .str.strip_prefix("the ")
@@ -88,11 +94,24 @@ def get_all_life_tables() -> pl.DataFrame:
 
     assert df.drop_nulls().height == df.height
 
-    assert df.select(pl.col("age").eq(0).any().over("year").all()).item(), (
-        "not all years have le at age zero"
+    sexes = df["sex"].unique().sort().to_list()
+    assert sexes == ["Pooled", "Male", "Female"], f"found unexpected sex: {sexes}"
+    assert df.filter(
+        pl.col("table_title").str.to_lowercase().str.contains("male")
+        & pl.col("sex").eq("Pooled")
+    ).is_empty()
+
+    assert df.select(pl.col("age").eq(0).any().over("table_title").all()).item(), (
+        "not all tables have le at age zero"
     )
 
-    assert df.select(pl.col("year").unique().len()).item() == len(VOLUMES)
+    assert df.select(pl.col("year").unique().len()).item() == len(VOLUMES), (
+        "some years not accounted for"
+    )
+
+    assert df.filter(race="Pooled", sex="Pooled").unique("year").height == len(
+        VOLUMES
+    ), "pooled le not available in some years"
 
     return df
 
@@ -104,13 +123,19 @@ def get_life_table(year: int, table_number: int) -> pl.DataFrame:
     release = VOLUMES.get(year)
     assert release, f"no volume for {year}"
 
-    filename = (
-        f"Table{table_number:>02}_Intercensal.xlsx"
+    stem = (
+        f"Table{table_number:>02}_Intercensal"
         if year < 2010
-        else f"Table{table_number:>02}.xlsx"
+        else f"Table{table_number:>02}"
     )
-    url = f"{BASE_URL}/{release}/{filename}"
-    response = CLIENT.get(url)
+
+    # try both xlsx and xls extentions
+    for ext in (".xlsx", ".xls"):
+        response = CLIENT.get(f"{BASE_URL}/{release}/{stem}{ext}")
+
+        if response.is_success:
+            break
+
     response.raise_for_status()
 
     xl = fastexcel.read_excel(response.content)
@@ -126,15 +151,14 @@ def get_life_table(year: int, table_number: int) -> pl.DataFrame:
     assert match.group("year") == str(year), f"{match.group('year')} != {year}"
 
     return (
-        table_contents.rename(
-            {"__UNNAMED__0": "age", "Age (years)": "age", "Age": "age"},
-            strict=False,
-        )
-        .rename(lambda s: s.strip().replace("x", "").replace("()", ""))
+        table_contents.rename(lambda s: s.strip().replace("x", "").replace("()", ""))
         .select(
             pl.lit(table_title).alias("table_title"),
             *(pl.lit(v.strip()).alias(k) for k, v in match.groupdict().items()),
-            pl.col("age").str.extract(r"^(\d+).*$").str.to_integer(),
+            (cs.starts_with("age") | cs.starts_with("Age") | cs.matches("__UNNAMED__0"))
+            .str.extract(r"^(\d+).*$")
+            .str.to_integer()
+            .alias("age"),
             *LIFE_TABLE_COLS,
         )
         .drop_nulls("age")
@@ -158,3 +182,4 @@ def _suppress_log_message(logger_name: str, text: str) -> Generator[None]:
 
 if __name__ == "__main__":
     df = get_all_life_tables()
+    print(df)
