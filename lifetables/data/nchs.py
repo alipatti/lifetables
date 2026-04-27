@@ -11,7 +11,17 @@ LIFE_TABLE_TITLE_PATTERN = (
     + r"United States, (?P<year>\d{4})$"
 )
 
+# see https://www.cdc.gov/nchs/products/life_tables.htm
 VOLUMES = {
+    2010: "63_07",
+    2011: "64_11",
+    2012: "65_08",
+    2013: "66_03",
+    2014: "66_04",
+    2015: "67_07",
+    2016: "68_04",
+    2017: "68_07",
+    2018: "69-12",
     2019: "70-19",
     2020: "71-01",
     2021: "72-12",
@@ -26,43 +36,45 @@ CLIENT = SyncCacheClient(base_url=BASE_URL)
 
 RACE_MAPPING = {
     # total
-    "": "Pooled",
-    "the total population": "Pooled",
+    "": "Total",
+    "total": "Total",
     # hispanic
     "hispanic": "Hispanic",
-    "the hispanic population": "Hispanic",
     # white
-    "white, non-hispanic": "White",
-    "non-hispanic white": "White",
-    "the white, non-hispanic population": "White",
-    "the non-hispanic white population": "White",
+    "white": "White",
+    "white, non-hispanic": "Non-Hispanic White",
+    "non-hispanic white": "Non-Hispanic White",
     # black
-    "black, non-hispanic": "Black",
-    "non-hispanic black": "Black",
-    "the black, non-hispanic population": "Black",
-    "the non-hispanic black population": "Black",
+    "black": "Black",
+    "black, non-hispanic": "Non-Hispanic Black",
+    "non-hispanic black": "Non-Hispanic Black",
     # asian
-    "asian, non-hispanic": "Asian",
-    "non-hispanic asian": "Asian",
-    "the asian, non-hispanic population": "Asian",
-    "the non-hispanic asian population": "Asian",
+    "asian, non-hispanic": "Non-Hispanic Asian",
+    "non-hispanic asian": "Non-Hispanic Asian",
     # aian
-    "american indian and alaska native, non-hispanic": "AIAN",
-    "non-hispanic american indian or alaska native": "AIAN",
-    "the american indian and alaska native, non-hispanic population": "AIAN",
-    "the non-hispanic american indian or alaska native population": "AIAN",
+    "american indian and alaska native, non-hispanic": "Non-Hispanic AIAN",
+    "non-hispanic american indian or alaska native": "Non-Hispanic AIAN",
 }
 
 
 def get_all_life_tables() -> pl.DataFrame:
-    return pl.concat(
-        get_life_table(year, table) for year in VOLUMES.keys() for table in range(1, 19)
-    ).with_columns(
+    dfs = (
+        get_life_table(year, table)
+        for year in VOLUMES.keys()
+        for table in (range(1, 19) if year != 2018 else range(1, 13))
+    )
+
+    return pl.concat(dfs, how="diagonal_relaxed").with_columns(
         pl.col("year").str.to_integer(),
         pl.col("sex").replace_strict(
             {"females": "Female", "males": "Male", "": "Pooled"}
         ),
-        pl.col("race").str.to_lowercase().replace_strict(RACE_MAPPING),
+        pl.col("race")
+        .str.to_lowercase()
+        .str.strip_prefix("the ")
+        .str.strip_suffix(" population")
+        .str.replace("–", "-")
+        .replace_strict(RACE_MAPPING),
     )
 
 
@@ -89,7 +101,7 @@ def get_life_table(year: int, table_number: int) -> pl.DataFrame:
     return (
         xl.load_sheet(0, header_row=2)
         .to_polars()
-        .rename({"__UNNAMED__0": "age"})
+        .rename({"__UNNAMED__0": "age", "Age (years)": "age"}, strict=False)
         .rename(lambda s: s.replace("x", ""))
         .select(
             pl.lit(table_title).alias("table_title"),

@@ -31,6 +31,7 @@ Homepage = "https://github.com/alipatti/lifetables"
 
 [project.optional-dependencies]
 nchs = [
+    "httpx>=0.28.1",
     "fastexcel>=0.20.1",
     "hishel>=1.2.1",
 ]
