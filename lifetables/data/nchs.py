@@ -1,5 +1,7 @@
 import logging
 import re
+from contextlib import contextmanager
+from collections.abc import Generator
 
 from hishel.httpx import SyncCacheClient
 import polars as pl
@@ -63,6 +65,7 @@ RACE_MAPPING = {
 
 
 def get_all_life_tables() -> pl.DataFrame:
+    """Fetch and combine all NCHS life tables across every available year and demographic group."""
     dfs = (
         get_life_table(year, table)
         for year in VOLUMES.keys()
@@ -95,7 +98,7 @@ def get_all_life_tables() -> pl.DataFrame:
 
 
 def get_life_table(year: int, table_number: int) -> pl.DataFrame:
-
+    """Fetch a single NCHS life table by year and table number from the CDC FTP server."""
     logging.info(f"Fetching Table {table_number} for {year}")
 
     release = VOLUMES.get(year)
@@ -112,16 +115,15 @@ def get_life_table(year: int, table_number: int) -> pl.DataFrame:
 
     xl = fastexcel.read_excel(response.content)
 
-    # get the table title from cell AA
-    table_title = xl.load_sheet(0, n_rows=1).to_polars().columns[0].strip()
+    with _suppress_log_message("fastexcel.types.dtype", "falling back to string"):
+        table_title = xl.load_sheet(0, n_rows=1).to_polars().columns[0].strip()
+        table_contents = xl.load_sheet(
+            0, header_row=2 if year > 2010 else 6
+        ).to_polars()
 
     match = re.match(LIFE_TABLE_TITLE_PATTERN, table_title)
     assert match is not None, f"failed to parse {table_title}"
     assert match.group("year") == str(year), f"{match.group('year')} != {year}"
-
-    # CLAUDE: disable this warning
-    # "WARNING:fastexcel.types.dtype:Could not determine dtype for column 7, falling back to string"
-    table_contents = xl.load_sheet(0, header_row=2 if year > 2010 else 6).to_polars()
 
     return (
         table_contents.rename(
@@ -137,6 +139,21 @@ def get_life_table(year: int, table_number: int) -> pl.DataFrame:
         )
         .drop_nulls("age")
     )
+
+
+@contextmanager
+def _suppress_log_message(logger_name: str, text: str) -> Generator[None]:
+    """Suppress log records from `logger_name` whose message contains `text`."""
+    logger = logging.getLogger(logger_name)
+    f = logging.Filter()
+    f.filter = lambda r: text not in r.getMessage()  # type: ignore[method-assign]
+    logger.addFilter(f)
+
+    try:
+        yield
+
+    finally:
+        logger.removeFilter(f)
 
 
 if __name__ == "__main__":
