@@ -29,6 +29,12 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/alipatti/lifetables"
 
+[project.optional-dependencies]
+nchs = [
+    "fastexcel>=0.20.1",
+    "hishel>=1.2.1",
+]
+
 [dependency-groups]
 dev = [
     "ipython>=8.12.3",
