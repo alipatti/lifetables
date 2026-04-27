@@ -3,6 +3,7 @@ import re
 from contextlib import contextmanager
 from collections.abc import Generator
 
+from hishel import CacheOptions, SpecificationPolicy
 from hishel.httpx import SyncCacheClient
 import polars as pl
 from polars import selectors as cs
@@ -180,6 +181,19 @@ def _suppress_log_message(logger_name: str, text: str) -> Generator[None]:
         logger.removeFilter(f)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    from pathlib import Path
+
+    logging.basicConfig(level=logging.INFO)
     df = get_all_life_tables()
-    print(df)
+
+    logging.info(df)
+
+    out = Path(__file__).parent / "nchs" / "life_tables.parquet"
+    out.parent.mkdir(exist_ok=True)
+    logging.info(f"saving to {out}")
+    df.write_parquet(out)
+
+
+if __name__ == "__main__":
+    main()

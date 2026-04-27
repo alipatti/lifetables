@@ -26,10 +26,25 @@ def _hmd_life_table(
     )
 
 
+def nchs_life_table() -> pl.DataFrame:
+    """
+    Get U.S. life tables from the National Center for Health Statistics.
+
+    Data are aggregated from individual Excel files published annually in the
+    National Vital Statistics Reports series and hosted on the CDC FTP server
+    at https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/NVSR.
+
+    For a list of all annual reports, see https://www.cdc.gov/nchs/products/life_tables.htm.
+    """
+    path = DATA / "nchs" / "life_tables.parquet"
+    return pl.read_parquet(path.open("rb"))
+
+
 def hmd_life_table(by_sex=True) -> pl.DataFrame:
     """
-    From the Human Mortality Database:
-    https://www.mortality.org/Country/Country?cntr=USA
+    Get U.S. life tables from the Human Mortality Database.
+
+    See https://www.mortality.org/Country/Country?cntr=USA for more.
     """
     if by_sex:
         return pl.concat(
