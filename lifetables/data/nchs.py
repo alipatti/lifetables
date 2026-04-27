@@ -13,6 +13,10 @@ LIFE_TABLE_TITLE_PATTERN = (
 
 # see https://www.cdc.gov/nchs/products/life_tables.htm
 VOLUMES = {
+    2006: "58_21",
+    2007: "59_09",
+    2008: "61_03",
+    2009: "62_07",
     2010: "63_07",
     2011: "64_11",
     2012: "65_08",
@@ -33,6 +37,7 @@ VOLUMES = {
 BASE_URL = "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/NVSR"
 CLIENT = SyncCacheClient(base_url=BASE_URL)
 
+LIFE_TABLE_COLS = ["q", "L", "e", "l", "d", "T"]
 
 RACE_MAPPING = {
     # total
@@ -64,18 +69,29 @@ def get_all_life_tables() -> pl.DataFrame:
         for table in (range(1, 19) if year != 2018 else range(1, 13))
     )
 
-    return pl.concat(dfs, how="diagonal_relaxed").with_columns(
+    df = pl.concat(dfs, how="diagonal_relaxed").with_columns(
         pl.col("year").str.to_integer(),
         pl.col("sex").replace_strict(
-            {"females": "Female", "males": "Male", "": "Pooled"}
+            {"females": "Female", "males": "Male", "": "Pooled"},
+            return_dtype=pl.Categorical,
         ),
         pl.col("race")
         .str.to_lowercase()
         .str.strip_prefix("the ")
         .str.strip_suffix(" population")
         .str.replace("–", "-")
-        .replace_strict(RACE_MAPPING),
+        .replace_strict(RACE_MAPPING, return_dtype=pl.Categorical),
     )
+
+    assert df.drop_nulls().height == df.height
+
+    assert df.select(pl.col("age").eq(0).any().over("year").all()).item(), (
+        "not all years have le at age zero"
+    )
+
+    assert df.select(pl.col("year").unique().len()).item() == len(VOLUMES)
+
+    return df
 
 
 def get_life_table(year: int, table_number: int) -> pl.DataFrame:
@@ -85,7 +101,12 @@ def get_life_table(year: int, table_number: int) -> pl.DataFrame:
     release = VOLUMES.get(year)
     assert release, f"no volume for {year}"
 
-    url = f"{BASE_URL}/{release}/Table{table_number:>02}.xlsx"
+    filename = (
+        f"Table{table_number:>02}_Intercensal.xlsx"
+        if year < 2010
+        else f"Table{table_number:>02}.xlsx"
+    )
+    url = f"{BASE_URL}/{release}/{filename}"
     response = CLIENT.get(url)
     response.raise_for_status()
 
@@ -98,16 +119,21 @@ def get_life_table(year: int, table_number: int) -> pl.DataFrame:
     assert match is not None, f"failed to parse {table_title}"
     assert match.group("year") == str(year), f"{match.group('year')} != {year}"
 
+    # CLAUDE: disable this warning
+    # "WARNING:fastexcel.types.dtype:Could not determine dtype for column 7, falling back to string"
+    table_contents = xl.load_sheet(0, header_row=2 if year > 2010 else 6).to_polars()
+
     return (
-        xl.load_sheet(0, header_row=2)
-        .to_polars()
-        .rename({"__UNNAMED__0": "age", "Age (years)": "age"}, strict=False)
-        .rename(lambda s: s.replace("x", ""))
+        table_contents.rename(
+            {"__UNNAMED__0": "age", "Age (years)": "age", "Age": "age"},
+            strict=False,
+        )
+        .rename(lambda s: s.strip().replace("x", "").replace("()", ""))
         .select(
             pl.lit(table_title).alias("table_title"),
             *(pl.lit(v.strip()).alias(k) for k, v in match.groupdict().items()),
             pl.col("age").str.extract(r"^(\d+).*$").str.to_integer(),
-            pl.col("^.$"),
+            *LIFE_TABLE_COLS,
         )
         .drop_nulls("age")
     )
