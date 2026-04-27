@@ -149,7 +149,9 @@ def arriaga_decomposition(
             initial_mortality,
             by=by,
             within_age=within_age,
-        ).with_columns(pl.col("contribution_years").mul(-1)) # correct negative sign in years
+        ).with_columns(
+            pl.col("contribution_years").mul(-1)
+        )  # correct negative sign in years
 
     # now direction == "average":
 

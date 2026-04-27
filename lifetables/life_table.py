@@ -1,5 +1,5 @@
 """
-See e.g. 
+See e.g.
 - https://www.ssa.gov/oact/HistEst/PerLifeTables/LifeTableDefinitions.pdf
 - https://www.aitrs.org/sites/default/files/Life%20Tables.pdf
 - https://mortality.org/File/GetDocument/Public/Docs/MethodsProtocolV6.pdf (p. 36)

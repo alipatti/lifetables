@@ -3,7 +3,6 @@ import re
 from contextlib import contextmanager
 from collections.abc import Generator
 
-from hishel import CacheOptions, SpecificationPolicy
 from hishel.httpx import SyncCacheClient
 import polars as pl
 from polars import selectors as cs
